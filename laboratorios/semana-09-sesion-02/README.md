@@ -8,19 +8,13 @@
 
 ## Requisitos antes de esta sesión
 
-Instala scikit-learn:
-
-```
-pip install scikit-learn
-```
-
-Verifica con:
+scikit-learn ya viene en el Codespace. En tu laptop, instálalo con `pip install -r requirements.txt` desde la raíz del repositorio. Verifica con:
 
 ```
 python3 -c "import sklearn; print(sklearn.__version__)"
 ```
 
-Este laboratorio usa `sparse_output=False` en `OneHotEncoder`, disponible desde scikit-learn 1.2. Si tu versión es anterior, actualízala con `pip install --upgrade scikit-learn`.
+Este laboratorio usa `sparse_output=False` en `OneHotEncoder`, disponible desde scikit-learn 1.2. El `requirements.txt` del repositorio ya fija una versión posterior.
 
 Ten a mano el script de features de tu proyecto de la sesión pasada.
 
@@ -44,36 +38,46 @@ _(tu respuesta)_
 
 ## Ejercicio 1: encontrar y corregir la fuga
 
-Enunciado: [`starter/viajes_features.csv`](./starter/viajes_features.csv) tiene los viajes de taxi con las features de la sesión pasada, sin los errores confirmados, y con la distancia 0 y los 0 pasajeros marcados como faltantes. Un compañero imputa y escala la distancia y los pasajeros con todo el dataset, después divide en entrenamiento y prueba, y entrena una regresión lineal. El código está en la diapositiva.
+Archivo: [`starter/ejercicio1_fuga.py`](./starter/ejercicio1_fuga.py), sobre [`starter/viajes_features.csv`](./starter/viajes_features.csv): los viajes de taxi con las features de la sesión pasada, sin los errores confirmados, y con la distancia 0 y los 0 pasajeros marcados como faltantes. La primera parte del script es el código de un compañero: imputa y escala la distancia y los pasajeros con todo el dataset, después divide en entrenamiento y prueba, y entrena una regresión lineal. La segunda parte es la versión correcta, con 3 `TODO`. Córrelo una vez antes de tocar nada:
 
-**Respuesta 1, antes de ver la solución:** ¿en qué línea entra el conjunto de prueba al entrenamiento?
+```
+cd laboratorios/semana-09-sesion-02/starter
+python3 ejercicio1_fuga.py
+```
 
-En el `fit` del imputador y del escalador, que se hace **antes** de `train_test_split`. Ahí la mediana que se usa para imputar y la media y desviación estándar que se usan para escalar se calculan con todas las filas, incluidas las que después quedan en prueba. Así el conjunto de prueba ya influyó en cómo se transformó el entrenamiento.
+**Respuesta 1, antes de ver la solución:** en la versión del compañero, ¿en qué línea entra el conjunto de prueba al entrenamiento? ¿Qué número de la salida lo delata?
 
-**Respuesta 2:** ¿cuánto esperas que cambie el error absoluto medio en prueba al corregir la fuga? Si casi no cambia, ¿significa que no había fuga?
+En el `fit` del imputador y del escalador, que se hace **antes** de `train_test_split`. Ahí la mediana que se usa para imputar y la media y desviación estándar que se usan para escalar se calculan con todas las filas, incluidas las que después quedan en prueba. Así el conjunto de prueba ya influyó en cómo se transformó el entrenamiento. Lo delata `Filas que vio el escalador: 2975`: son todas las filas, cuando el entrenamiento solo tiene 2380. La media de distancia usada para escalar es 8.5168, la de todo el dataset, en vez de 8.572, la de entrenamiento.
+
+**Respuesta 2 (TODO 1 y 3):** sin resolver, la versión correcta dice que tiene 2975 filas de prueba. ¿Qué está midiendo ese error, si prueba y entrenamiento son las mismas filas?
+
+Mide el error **en entrenamiento**, no en prueba. Si el modelo se evalúa con las mismas 2975 filas con las que aprendió, el error dice qué tan bien se ajustó a lo que ya vio, no qué tan bien predice viajes nuevos, así que sale optimista. Al resolver el TODO 1 y el TODO 3, la prueba queda en 595 filas que el pipeline nunca vio.
+
+**Respuesta 3:** ¿cuánto esperas que cambie el error absoluto medio en prueba al corregir la fuga? Si casi no cambia, ¿significa que no había fuga?
 
 Muy poco. Con 2975 viajes y una división 80/20, la mediana y la media casi no cambian: la media de la distancia es 8.517 con todo el dataset y 8.572 con solo entrenamiento. El MAE pasa de **2.5375** (con fuga) a **2.5373** (corregido). Que casi no cambie **no significa que no hubiera fuga**: la fuga es un error en el procedimiento, no en el número. Aquí su efecto es chico porque la estadística filtrada es estable, pero con pocos datos, con una división por fecha (donde la distribución cambia con el tiempo) o con transformaciones que usan el objetivo (como el *target encoding*), la misma fuga infla la métrica mucho más.
 
-**La formulación completa, tal como la resuelvo yo:**
+**Lo que confirmó la salida, TODO por TODO:**
 
-Script: `starter/fuga.py` (se corre desde la carpeta de la sesión, con `python3 starter/fuga.py`). Compara la versión con fuga y la corregida.
+Script con la solución: `starter/fuga.py` (desde la carpeta de la sesión, `python3 starter/fuga.py`). Compara la versión con fuga y la corregida.
+
+- **Versión del compañero:** el escalador vio **2975** filas, con una media de distancia de **8.5168**, y el MAE en prueba es **2.5375**.
+- **Versión correcta:** el escalador ve **2380** filas (solo entrenamiento), con una media de distancia de **8.572**. Las filas de prueba son 595 y el MAE en prueba es **2.5373**.
 
 La corrección es dividir primero y meter la imputación y el escalado en un `Pipeline` junto con el modelo, para que `fit` solo vea entrenamiento:
 
 ```python
-X_ent, X_prueba, y_ent, y_prueba = train_test_split(
-    viajes[["distancia_km", "pasajeros"]], viajes["tarifa"], test_size=0.2, random_state=42)
+X_ent, X_prueba, y_ent, y_prueba = train_test_split(X, y, test_size=0.2, random_state=42)
 
-modelo = Pipeline([
+pipeline = Pipeline([
     ("imputar", SimpleImputer(strategy="median")),
     ("escalar", StandardScaler()),
-    ("regresion", LinearRegression()),
+    ("modelo", LinearRegression()),
 ])
-modelo.fit(X_ent, y_ent)
-print(mean_absolute_error(y_prueba, modelo.predict(X_prueba)))
+pipeline.fit(X_ent, y_ent)
 ```
 
-Resultado: MAE con fuga de 2.5375 y corregido de 2.5373. Faltantes en el dataset: 25 en `distancia_km`, 138 en `pasajeros` y 60 en `metodo_pago`.
+Faltantes en el dataset: 25 en `distancia_km`, 138 en `pasajeros` y 60 en `metodo_pago`.
 
 ## Durante el ConcepTest
 
@@ -91,7 +95,11 @@ _(tu respuesta)_
 
 ## Ejercicio 2: el pipeline completo
 
-Solo o en pareja. Parte de la plantilla [`plantilla-ejercicio2/pipeline_completo.py`](./plantilla-ejercicio2/pipeline_completo.py) y córrela desde su carpeta. Completa los 5 `TODO`: división, `ColumnTransformer` con tres grupos de columnas, `fit` solo con entrenamiento, verificación de las medianas, y un viaje desde una zona que el entrenamiento nunca vio.
+Solo o en pareja. Archivo: [`starter/ejercicio2_pipeline.py`](./starter/ejercicio2_pipeline.py), sobre el mismo `viajes_features.csv`. Completa los 5 `TODO`: división, `ColumnTransformer` con tres grupos de columnas, `fit` solo con entrenamiento, verificación de las medianas, y un viaje desde una zona que el entrenamiento nunca vio. Al final, el script imprime una comprobación por TODO: complétalos hasta que todas digan `OK`.
+
+```
+python3 ejercicio2_pipeline.py
+```
 
 **Respuesta 1:** ¿cuántas columnas quedan después de preparar los datos? Explica de dónde sale ese número a partir de los tres grupos de columnas.
 

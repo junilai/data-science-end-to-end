@@ -36,19 +36,31 @@ _(tu respuesta)_
 
 ## Ejercicio 1: features de fecha y hora
 
-Enunciado: [`starter/viajes_taxi.csv`](./starter/viajes_taxi.csv), el mismo dataset de la sesión pasada, sin los errores confirmados. A partir de `fecha_hora_inicio`, construir hora, día de la semana, fin de semana, hora pico y la hora como ciclo, y comprobar si la hora pico aporta algo a la tarifa.
+Archivo: [`starter/ejercicio1_features_tiempo.py`](./starter/ejercicio1_features_tiempo.py), sobre [`starter/viajes_taxi.csv`](./starter/viajes_taxi.csv), el mismo dataset de la sesión pasada. El script ya quita los errores confirmados, convierte `fecha_hora_inicio` y compara la tarifa por kilómetro según la hora pico; faltan 4 `TODO`: hora, día de la semana, fin de semana, hora pico y la hora como ciclo. Córrelo una vez antes de tocar nada:
 
-**Respuesta 1, antes de ver la solución:** si dejas la hora como un número del 0 al 23, ¿qué tan lejos queda la hora 23 de la hora 0 para un modelo que mide distancias entre números? ¿Y en el reloj?
+```
+cd laboratorios/semana-09-sesion-01/starter
+python3 ejercicio1_features_tiempo.py
+```
+
+**Respuesta 1 (TODO 4), antes de ver la solución:** si dejas la hora como un número del 0 al 23, ¿qué tan lejos queda la hora 23 de la hora 0 para un modelo que mide distancias entre números? ¿Y en el reloj?
 
 Como número quedan a 23 unidades de distancia, la máxima posible. En el reloj están a solo 1 hora. Por eso la hora se codifica como ciclo con `hora_sin = sin(2π·hora/24)` y `hora_cos = cos(2π·hora/24)`: así las 23:00 y las 00:00 quedan juntas en el círculo.
 
-**Respuesta 2:** la duración del viaje no existe al pedir el taxi, pero la hora sí. ¿Qué parte de lo que la duración le diría al modelo puede traer `es_hora_pico`?
+**Respuesta 2 (TODO 3):** sin el TODO 3, el Paso 4 muestra un solo grupo. Con la hora pico construida, ¿esperas que la tarifa por kilómetro sea más alta o más baja en hora pico? ¿Por qué, si la tarifa depende de la distancia y de la duración?
+
+**Más alta.** La tarifa cobra por distancia y también por tiempo. En hora pico el taxi avanza más lento (16.5 km/h de mediana, contra 21.4 km/h fuera de ella), así que cada kilómetro tarda más y cuesta más: la tarifa por km sube de **3.22** a **3.52**. La hora pico captura esa parte de la duración que depende del tráfico.
+
+**Respuesta 3:** la duración del viaje no existe al pedir el taxi, pero la hora sí. ¿Qué parte de lo que la duración le diría al modelo puede traer `es_hora_pico`?
 
 El tráfico. La duración le dice al modelo si el viaje fue lento (más tiempo detenido, más cobro). `es_hora_pico` anticipa esa lentitud antes del viaje: en hora pico la velocidad mediana baja a 16.5 km/h, contra 21.4 km/h fuera de ella. Lo que no puede traer es la parte imprevisible de cada viaje, como un accidente o un desvío.
 
-**La formulación completa, tal como la resuelvo yo:**
+**Lo que confirmó la salida, TODO por TODO:**
 
-Script: `starter/mi_primer_feature_eng.py` (se corre desde la carpeta de la sesión). Crea `hora`, `dia_semana`, `hora_sin`, `hora_cos`, `es_fin_de_semana` (sábado y domingo) y `es_hora_pico` (lunes a viernes de 7 a 9 y de 16 a 19, las horas donde la velocidad cae a unos 17 km/h).
+Script con la solución: `starter/mi_primer_feature_eng.py`. Crea `hora`, `dia_semana`, `hora_sin`, `hora_cos`, `es_fin_de_semana` (sábado y domingo) y `es_hora_pico` (lunes a viernes de 7 a 9 y de 16 a 19, las horas donde la velocidad cae a unos 17 km/h).
+
+- **Paso 4:** la tarifa por km (mediana) es **3.22** fuera de hora pico y **3.52** en hora pico (el script quita solo las tarifas de 70; si además se quitan todos los viajes de JFK, sale 3.23 y 3.53, como en la tabla de abajo).
+- **Paso 5:** 23 y 0 quedan a 23 como número y a **0.26** como ciclo. 11 y 12 quedan a 1 como número y a **0.26** como ciclo. Como ciclo, todas las horas consecutivas quedan a la misma distancia.
 
 Sin los viajes de JFK (tarifa fija) ni los 25 de distancia 0:
 
@@ -76,7 +88,11 @@ _(tu respuesta)_
 
 ## Ejercicio 2: zona, codificación y disponibilidad
 
-Solo o en pareja. Parte de la plantilla [`plantilla-ejercicio2/features_de_zona.py`](./plantilla-ejercicio2/features_de_zona.py) y córrela desde su carpeta. Completa los 4 `TODO`.
+Solo o en pareja. Archivo: [`starter/ejercicio2_features_zona.py`](./starter/ejercicio2_features_zona.py), sobre el mismo `viajes_taxi.csv`. Completa los 4 `TODO`. Al final, el script imprime una comprobación por TODO: complétalos hasta que todas digan `OK`.
+
+```
+python3 ejercicio2_features_zona.py
+```
 
 **Respuesta 1:** ¿cuántos viajes tienen `es_tarifa_fija` en 1, y qué tarifa mínima y máxima tienen? ¿Qué te dice eso sobre lo que un modelo lineal puede aprender con esta columna?
 
