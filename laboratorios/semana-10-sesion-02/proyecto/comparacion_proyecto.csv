@@ -1,0 +1,4 @@
+modelo,mae_prueba,segundos,parametros,mae_10_filas
+gradient boosting max_depth=5,5.549,42.482,,6.061
+red neuronal (64),5.5009,25.899,1153.0,6.6554
+llm,,0.0,,4.6

@@ -71,17 +71,22 @@ ensamblaje = evaluar("gradient boosting", GradientBoostingRegressor(random_state
 
 # TODO 1: una red neuronal (MLPRegressor) con una capa oculta de 64
 # neuronas, hasta 1000 iteraciones y random_state=42.
-red = evaluar("red neuronal", MLPRegressor(hidden_layer_sizes=(64,), random_state=42))
+red = evaluar("red neuronal", MLPRegressor(hidden_layer_sizes=(64,), max_iter=1000, random_state=42))
 
 # TODO 2: parametros_red, cuantos numeros aprendio la red: la suma de los
 # tamanos (.size) de todas las matrices de coefs_ y todos los vectores
 # de intercepts_ del paso "modelo".
-parametros_red = None
+mlp = red.named_steps["modelo"]
+parametros_red = sum(m.size for m in mlp.coefs_) + sum(b.size for b in mlp.intercepts_)
+print("Iteraciones de la red:", mlp.n_iter_)
 
 # TODO 3: importancias, una serie de pandas con feature_importances_ del
 # ensamblaje, indexada por los nombres de columna que produce la
 # preparacion (get_feature_names_out), ordenada de mayor a menor.
-importancias = None
+importancias = pd.Series(
+    ensamblaje.named_steps["modelo"].feature_importances_,
+    index=ensamblaje.named_steps["preparar"].get_feature_names_out(),
+).sort_values(ascending=False)
 
 print()
 print(pd.DataFrame(resultados).to_string(index=False))
