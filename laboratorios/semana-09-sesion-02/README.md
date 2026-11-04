@@ -16,7 +16,7 @@ python3 -c "import sklearn; print(sklearn.__version__)"
 
 Este laboratorio usa `sparse_output=False` en `OneHotEncoder`, disponible desde scikit-learn 1.2. El `requirements.txt` del repositorio ya fija una versión posterior.
 
-Ten a mano el script de features de tu proyecto de la sesión pasada.
+Ten a mano tu notebook de features de la sesión pasada. Los tres ejercicios de hoy son scripts, no notebooks: un pipeline de preparación es código de producción, que tiene que correr igual cada vez y que otros archivos importan. En el Ejercicio 3, la preparación de tu proyecto pasa del notebook donde la probaste a ese script.
 
 ## Antes de empezar
 
@@ -119,11 +119,19 @@ Coinciden con las de **entrenamiento**. Para `distancia_km` el imputador aprendi
 
 Con `handle_unknown="ignore"`, el Bronx no coincide con ninguna zona vista en entrenamiento, así que sus **8 columnas de `zona_origen` quedan en 0** (0 de 8 en 1). El viaje sale con las mismas 25 columnas que espera el modelo y se puede predecir: el modelo lo trata como "una zona que no es ninguna de las conocidas". Con `pd.get_dummies` aplicado solo a ese viaje salen **10 columnas** con otros nombres (`zona_origen_Bronx`, `zona_destino_Midtown`, `metodo_pago_tarjeta`…). Faltarían las otras columnas de zona y sobraría `zona_origen_Bronx`, así que no coincidiría con las columnas del entrenamiento y el modelo fallaría o leería las columnas desalineadas.
 
-## Ejercicio 3: el pipeline de tu proyecto
+## Ejercicio 3: el pipeline de tu proyecto, como script
 
-Usa tu archivo con las 2 features de la sesión pasada y la plantilla [`plantilla-pipeline/pipeline_proyecto.py`](./plantilla-pipeline/pipeline_proyecto.py).
+Copia la plantilla [`plantilla-pipeline/pipeline_proyecto.py`](./plantilla-pipeline/pipeline_proyecto.py) a la carpeta de tu proyecto, al lado de tu notebook de features. Desde la próxima sesión, tus notebooks de modelos importan este archivo en vez de copiar su código:
 
-### Paso 1: clasifica tus columnas (5 minutos)
+```python
+from pipeline_proyecto import cargar_y_dividir, construir_preparacion
+```
+
+### Paso 1: pasa tus features a `agregar_features` (5 minutos)
+
+Copia de tu notebook de la sesión pasada solo las líneas que construyen tus 2 features, dentro de la función `agregar_features`. Sin gráficos, sin `print` y sin las celdas que usaste para probar ideas: esas se quedan en el notebook, como evidencia de por qué elegiste cada feature.
+
+### Paso 2: clasifica tus columnas (5 minutos)
 
 Escribe qué columnas son numéricas, cuáles categóricas y cuáles ya están listas, y cuál es el objetivo. Deja fuera toda columna que no exista al momento de predecir.
 
@@ -135,9 +143,9 @@ Script: `plantilla-pipeline/pipeline_proyecto.py`. Usa `obt_emergencias_canton_d
 - **Ya listas:** `es_fin_de_semana` y `es_feriado_t7` (convertidas a 0/1).
 - **Fuera:** `obj_n_emergencias_t3` (es de t+3, futuro), las fechas y los identificadores, `nombre_feriado` (casi todo nulo; ya está resumido en `es_feriado_t7`) y `canton` (222 valores; su nivel ya lo captura `log_media_prev_28d`). También se quitan las filas sin objetivo o sin 28 días de historia, las zonas no delimitadas y las filas cuyo día objetivo cae en enero de 2024 (período anómalo).
 
-### Paso 2: decide cómo dividir (5 minutos)
+### Paso 3: decide cómo dividir (5 minutos)
 
-¿Tu modelo predice el futuro a partir de filas con fecha? Si sí, divide por fecha; si no, al azar. Justifica.
+¿Tu modelo predice el futuro a partir de filas con fecha? Si sí, divide por fecha dentro de `cargar_y_dividir`; si no, al azar. Justifica.
 
 **Sí, se divide por fecha.** El modelo predice las emergencias de dentro de 7 días con datos hasta hoy. Si se divide al azar, el entrenamiento tendría días posteriores a los de prueba, y como los lags de días vecinos son casi iguales (correlación de 0.98 o más), el modelo "vería" la prueba y la métrica saldría inflada.
 
@@ -145,11 +153,18 @@ Script: `plantilla-pipeline/pipeline_proyecto.py`. Usa `obt_emergencias_canton_d
 - **Prueba:** del 2025-08-25 al 2026-08-24 (el último año, 20.1 % de las filas).
 - Entre los dos quedan **7 días de separación**: como el objetivo de cada fila es t+7, sin esa separación las últimas filas de entrenamiento tendrían su objetivo dentro del período de prueba.
 
-### Paso 3: construye y corre el pipeline (15 minutos)
+### Paso 4: corre el script (10 minutos)
 
-Completa la plantilla y córrela. Anota la forma de los conjuntos de entrenamiento y prueba ya preparados, y la lista de columnas que produce.
+Desde una terminal, en la carpeta de tu proyecto:
 
-- Filas para modelar: 404 484. **Entrenamiento: (321 900, 16). Prueba: (81 030, 16).**
+```
+python3 pipeline_proyecto.py
+```
+
+Si corre de principio a fin en una terminal nueva, sin el notebook abierto, otro código ya lo puede importar. Anota la forma de los conjuntos de entrenamiento y prueba ya preparados, y la lista de columnas que produce.
+
+- Filas para modelar: 404 484 (402 930 entre entrenamiento y prueba; el resto son los 7 días de separación). **Entrenamiento: (321 900, 16). Prueba: (81 030, 16).**
+- El script quedó en funciones (`agregar_features`, `cargar_datos`, `cargar_y_dividir` y `construir_preparacion`), así que los notebooks lo pueden importar.
 - 16 columnas: 3 numéricas + 4 de `region` (Amazonía, Costa, Insular, Sierra) + 7 de `nombre_dia` + 2 ya listas:
 
 ```

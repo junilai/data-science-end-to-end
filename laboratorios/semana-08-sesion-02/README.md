@@ -14,7 +14,7 @@ pandas y matplotlib ya vienen en el Codespace. En tu laptop, instálalos con `pi
 python3 -c "import matplotlib; print(matplotlib.__version__)"
 ```
 
-Los scripts de hoy guardan cada gráfico como imagen en una carpeta `figuras/`. Ábrelas desde el explorador de archivos de VS Code. También puedes correr el mismo código en un notebook de Jupyter (en el Codespace, crea un archivo `.ipynb` y elige el kernel de Python 3.11), donde el gráfico aparece debajo de la celda.
+Los laboratorios de hoy son notebooks de Jupyter, como el diagnóstico de la Semana 4: cada gráfico aparece debajo de la celda que lo dibuja. Una exploración se lee para decidir qué hacer con los datos; por eso va en un notebook y no en un script.
 
 ## Antes de empezar
 
@@ -36,18 +36,13 @@ _(tu respuesta)_
 
 ## Ejercicio 1: resumen, distribución y atípicos
 
-Archivo: [`starter/ejercicio1_explorar.py`](./starter/ejercicio1_explorar.py), sobre [`starter/viajes_taxi.csv`](./starter/viajes_taxi.csv): 3000 viajes en taxi de Nueva York, con fecha y hora de inicio, zona de origen y de destino, distancia, duración, pasajeros, método de pago, tarifa y propina. El script ya lee el archivo, arma los gráficos y los guarda en `figuras/`; faltan 4 `TODO`. Córrelo una vez antes de tocar nada:
-
-```
-cd laboratorios/semana-08-sesion-02/starter
-python3 ejercicio1_explorar.py
-```
+Notebook: [`starter/ejercicio1_explorar.ipynb`](./starter/ejercicio1_explorar.ipynb), sobre [`starter/viajes_taxi.csv`](./starter/viajes_taxi.csv): 3000 viajes en taxi de Nueva York, con fecha y hora de inicio, zona de origen y de destino, distancia, duración, pasajeros, método de pago, tarifa y propina. Ya lee el archivo y arma los gráficos; faltan 4 `TODO`. Córrelo completo una vez antes de tocar nada (**Run All**).
 
 **Respuesta 1 (TODO 1), antes de ver la solución:** en `describe()`, ¿qué dos valores de la tabla te harían sospechar de un error sin necesidad de graficar nada?
 
 _(tu respuesta)_
 
-**Respuesta 2 (TODO 2):** abre `figuras/hist_tarifa.png` después del TODO 2. ¿Por qué casi todo el histograma queda comprimido a la izquierda?
+**Respuesta 2 (TODO 2):** mira el histograma después del TODO 2. ¿Por qué casi todo el histograma queda comprimido a la izquierda?
 
 _(tu respuesta)_
 
@@ -75,11 +70,7 @@ _(tu respuesta)_
 
 ## Ejercicio 2: relaciones entre variables
 
-Solo o en pareja. Archivo: [`starter/ejercicio2_relaciones.py`](./starter/ejercicio2_relaciones.py), sobre el mismo `viajes_taxi.csv`. Quita solo los errores que el Ejercicio 1 ya confirmó y completa los 5 `TODO`: dispersión de distancia contra tarifa, propina por método de pago, correlaciones con la tarifa, y pasajeros vacíos o en 0. Al final, el script imprime una comprobación por TODO: completa los 5 hasta que todas digan `OK`.
-
-```
-python3 ejercicio2_relaciones.py
-```
+Solo o en pareja. Notebook: [`starter/ejercicio2_relaciones.ipynb`](./starter/ejercicio2_relaciones.ipynb), sobre el mismo `viajes_taxi.csv`. Quita solo los errores que el Ejercicio 1 ya confirmó y completa los 5 `TODO`: dispersión de distancia contra tarifa, propina por método de pago, correlaciones con la tarifa, y pasajeros vacíos o en 0. La última celda imprime una comprobación por TODO: completa los 5 hasta que todas digan `OK`.
 
 **Hallazgo 1: qué muestra el gráfico de distancia contra tarifa, además de la tendencia general.**
 
@@ -95,11 +86,11 @@ No. La duración tiene una correlación de 0.956 (la distancia, 0.960), pero sol
 
 ## Ejercicio 3: explora el dataset de tu proyecto
 
-Usa el archivo que tu pipeline de la Semana 7 deja listo para modelar, y la plantilla [`plantilla-eda/explorar_proyecto.py`](./plantilla-eda/explorar_proyecto.py).
+Usa el archivo que tu pipeline de la Semana 7 deja listo para modelar. Copia la plantilla [`plantilla-eda/explorar_proyecto.ipynb`](./plantilla-eda/explorar_proyecto.ipynb) a la carpeta de tu proyecto: el notebook es tu entregable, con el código, lo que mostró y lo que concluyes en el mismo lugar.
 
 ### Paso 1: resumen y variable objetivo (5 minutos)
 
-Reemplaza la ruta del archivo y el nombre de la columna que tu modelo va a predecir. Corre los pasos 1 a 3.
+Reemplaza la ruta del archivo y el nombre de la columna que tu modelo va a predecir. Corre los pasos 1 a 3: filas, columnas, faltantes por columna, la distribución del objetivo y cuántos atípicos marca el IQR.
 
 Archivo: `obt_emergencias_canton_dia.csv` (emergencias por cantón y día, del 2021-07-01 al 2026-08-31, 222 cantones). Objetivo: `obj_n_emergencias_t7`, es decir, las emergencias del cantón dentro de 7 días.
 
@@ -108,9 +99,10 @@ Archivo: `obt_emergencias_canton_dia.csv` (emergencias por cantón y día, del 2
 - El objetivo tiene media 41.8, mediana 8 y máximo 3653: está muy sesgado a la derecha.
 - El IQR (Q1 = 3, Q3 = 22) marcó **53 230 atípicos** (12.6 %).
 
+
 ### Paso 2: relaciones (10 minutos)
 
-Completa los pasos 4 y 5: la relación entre tu objetivo y la variable que esperas que más influya, y las consultas que confirman lo que encuentres.
+Completa el paso 4: la relación entre tu objetivo y la variable que esperas que más influya.
 
 - Dispersión `lag_7d` contra objetivo en escala log (`figuras/lag7d_vs_objetivo.png`): la relación es fuerte y lineal en log. La correlación es 0.989 en escala original y 0.920 en log. La más alta en log es `media_prev_28d` (0.948), así que la media reciente del cantón es el mejor predictor.
 - Promedio de emergencias por día de la semana (`figuras/emergencias_por_dia.png`): domingo 52.6 y sábado 48.4, contra 35.5 el martes. Hay estacionalidad semanal clara.
@@ -118,7 +110,11 @@ Completa los pasos 4 y 5: la relación entre tu objetivo y la variable que esper
 
 ### Paso 3: tres hallazgos que afectarían el modelado (10 minutos)
 
-Para cada hallazgo, escribe qué encontraste, el número o el gráfico que lo confirma, y qué cambia en el modelo por su causa (una fila que quitas, una columna que no puedes usar, una variable que hay que transformar).
+En el paso 5 del notebook, para cada hallazgo: una celda de código con el número o el gráfico que lo confirma, y debajo, en la celda de texto, qué encontraste y qué cambia en el modelo por su causa (una fila que quitas, una columna que no puedes usar, una variable que hay que transformar). Antes de hacer commit, reinicia el kernel y corre todo.
+
+**Ruta de tu notebook de exploración en tu fork:**
+
+`laboratorios/semana-08-sesion-02/plantilla-eda/explorar_proyecto.py` (entregado como script, antes de que la plantilla pasara a notebook; las figuras quedan en `plantilla-eda/figuras/`).
 
 **Hallazgo 1:**
 
