@@ -58,9 +58,11 @@ def cargar_datos(ruta=RUTA_DATOS):
     return agregar_features(datos)
 
 
-def cargar_y_dividir(ruta=RUTA_DATOS):
+def cargar_y_dividir(ruta=RUTA_DATOS, columnas_extra=()):
+    """columnas_extra se agregan a X pero la preparacion las descarta (por
+    ejemplo n_emergencias, que usa la linea base "igual que hoy")."""
     datos = cargar_datos(ruta)
-    X = datos[NUMERICAS + CATEGORICAS + YA_LISTAS]
+    X = datos[NUMERICAS + CATEGORICAS + YA_LISTAS + list(columnas_extra)]
     y = datos[OBJETIVO]
     ent = datos["fecha"] < CORTE - pd.Timedelta(days=7)
     prueba = datos["fecha"] >= CORTE

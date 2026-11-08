@@ -48,19 +48,31 @@ Notebook: [`starter/ejercicio1_registrar_corridas.ipynb`](./starter/ejercicio1_r
 
 **Respuesta 1 (antes de los TODO):** sin resolver, el notebook entrena los tres modelos e imprime sus errores. ¿Cuál de los dos gradient boosting tiene razón? ¿Qué parte de la salida te permite saberlo, y qué parte no?
 
-_(tu respuesta)_
+**Los dos**, cada uno sobre su propia división. El mío da **1.2754** en prueba (división con semilla 42) y el del compañero **1.1867** (semilla 7). Son el mismo modelo con los mismos hiperparámetros, pero evaluados sobre 595 viajes de prueba distintos, así que los números no son comparables entre sí y ninguno está "mal". De la salida, la columna `division` deja ver que las semillas son distintas. Lo que la salida **no** dice es todo lo demás que podría explicar la diferencia: con qué hiperparámetros se entrenó, con qué versión de los datos, con cuántas filas y con qué versión de las librerías. Tampoco queda el modelo para volver a probarlo.
 
 **Respuesta 2 (TODO 2 y 3):** de todo lo que se puede registrar de una corrida, ¿qué crees que explica la diferencia entre los dos gradient boosting? ¿Qué parámetro esperas ver distinto en la tabla del paso 5?
 
-_(tu respuesta)_
+La **división de los datos**: los dos gradient boosting tienen los mismos hiperparámetros (`n_estimators` = 100 y `random_state` = 42), la misma huella de datos (`4800204d50c0`) y las mismas 2380 filas de entrenamiento. Lo único que cambia en la tabla es `params.semilla_division`: **42 contra 7**. Con 595 viajes de prueba, cambiar qué viajes caen en prueba mueve el error en unos 0.09 USD.
 
 **Respuesta 3 (TODO 4):** el registro ya tiene los parámetros y las métricas. ¿Para qué guardar además el modelo entrenado?
 
-_(tu respuesta)_
+Porque con los parámetros y las métricas se puede **describir** el modelo, pero no **usarlo**. Guardar el pipeline entrenado (preparación + modelo) permite:
+
+- Predecir viajes nuevos o servirlo en la app sin reentrenar.
+- Comprobar que el número registrado sale de ese modelo exacto. Volver a entrenar no garantiza el mismo resultado si cambian las librerías, los datos o la semilla.
+- Comparar o auditar después qué predijo exactamente.
+
+MLflow guarda además las versiones de las librerías con las que se entrenó (`requirements.txt` del artefacto: scikit-learn 1.5.2, numpy 1.26.4 y pandas 2.2.2).
 
 **Lo que mostró la tabla del paso 5:**
 
-_(anota el error en prueba, la semilla de la división y la huella de los datos de cada corrida)_
+| corrida | semilla de división | huella de los datos | n_estimators | MAE prueba | segundos |
+|---|---|---|---|---|---|
+| gradient boosting (compañero) | 7 | 4800204d50c0 | 100 | 1.1867 | 0.12 |
+| gradient boosting | 42 | 4800204d50c0 | 100 | 1.2754 | 0.15 |
+| bosque aleatorio | 42 | 4800204d50c0 | 200 | 1.2989 | 0.75 |
+
+La única diferencia registrada entre los dos gradient boosting es la semilla de la división. La huella de los datos es la misma en las tres corridas.
 
 ## Durante el ConcepTest
 
@@ -82,19 +94,19 @@ Solo o en pareja. Notebook: [`starter/ejercicio2_comparar_y_elegir.ipynb`](./sta
 
 **Respuesta 1:** ¿qué modelo quedó primero en el registro, y por cuánto le gana al segundo?
 
-_(tu respuesta)_
+La **red neuronal**, con un MAE en prueba de **1.1695**. Le gana al gradient boosting (1.2754) por **0.106 USD por viaje, un 8.3 % menos de error**. El orden completo es: red 1.1695, gradient boosting 1.2754, bosque 1.2989, ridge 2.5565 y línea base 12.5308. Los 5 pasos de la comprobación dan `OK`.
 
 **Respuesta 2:** el paso 5 carga el modelo ganador desde el registro y vuelve a calcular su error. ¿Qué te garantiza que coincida con el número registrado? ¿Qué no te garantiza sobre ese modelo?
 
-_(tu respuesta)_
+Que coincida (1.169505229635501 registrado y reproducido) garantiza que el artefacto guardado **es el mismo modelo** que produjo esa métrica, con los mismos pesos y la misma preparación, y que se puede cargar y usar sin reentrenar. **No garantiza** que sea el mejor modelo en general ni que ese error se mantenga con datos nuevos: el número sale de una sola división de 595 viajes. Con otra semilla, el mismo gradient boosting pasó de 1.28 a 1.19 en el ejercicio 1, una diferencia parecida a la que separa al primero del segundo. Tampoco garantiza que funcione con viajes distintos a los de entrenamiento, como zonas nuevas o cambios de tarifa.
 
 **Respuesta 3:** si mañana alguien cambia una fila de `viajes_features.csv` y vuelve a entrenar, ¿cómo lo notarías mirando solo el registro?
 
-_(tu respuesta)_
+Por el parámetro **`huella_datos`**: es el hash MD5 del archivo, y si cambia un solo byte del CSV, cambia. Las corridas de hoy tienen todas `4800204d50c0`. Una corrida nueva con otra huella indica que se entrenó con otros datos, aunque `filas_entrenamiento` siga en 2380 y los hiperparámetros sean iguales. Así se sabe que sus métricas no se pueden comparar directamente con las de hoy.
 
 **Si terminas antes:** abre la interfaz de MLflow (pestaña **Ports**, puerto 5050), entra al experimento `tarifa-taxis-comparacion`, selecciona las cinco corridas y compáralas lado a lado con **Compare**. Además del error, ¿qué te dice el registro de la red neuronal que no te diría una tabla escrita a mano?
 
-_(tu respuesta)_
+El registro guarda **los 26 parámetros** de la red, incluidos los que nunca escribí porque son valores por defecto: `activation` = relu, `solver` = adam, `learning_rate_init` = 0.001, `alpha` = 0.0001, `batch_size` = auto, `early_stopping` = False, `tol` = 0.0001, `validation_fraction` = 0.1, etc. Además guarda la huella de los datos y la semilla, la duración y el usuario de la corrida, y el **modelo entrenado** con las versiones exactas de las librerías (scikit-learn 1.5.2, numpy 1.26.4 y pandas 2.2.2). Una tabla escrita a mano tendría el error y, con suerte, `hidden_layer_sizes` y `max_iter`. No permitiría reproducir la red si cambia un valor por defecto en otra versión de scikit-learn.
 
 ## Ejercicio 3: el registro de tu proyecto
 
@@ -119,11 +131,26 @@ La tabla de corridas de tu experimento, exportada con `mlflow.search_runs(...).t
 
 **¿Qué modelo elegiste como final? Escribe su `run_id` y los números del registro que sostienen la decisión.**
 
-_(tu respuesta)_
+Notebook: `proyecto/experimentos_proyecto.ipynb`. Importa la preparación y la división de `pipeline_proyecto.py` (que sigue en `semana-09-sesion-02/plantilla-pipeline/`) y la línea base de `proyecto/linea_base.py`. Registra 4 corridas en el experimento `emergencias-cantones`, todas con la misma huella de datos (`7624e6f357a7`) y la misma división (corte el 2025-08-25, 7 días de separación). La tabla exportada está en `proyecto/corridas_proyecto.csv`.
+
+| corrida | MAE entrenamiento | MAE prueba | brecha | segundos |
+|---|---|---|---|---|
+| red neuronal (64) | 5.6595 | **5.5009** | −0.159 | 10.1 |
+| **gradient boosting max_depth=5** (`candidato` = `final`) | 5.5520 | 5.5490 | −0.003 | 23.5 |
+| ridge alpha=100 | 6.2442 | 6.0395 | −0.205 | 0.3 |
+| línea base (igual que hoy) | 6.9318 | 6.7778 | −0.154 | 0.0 |
+
+Elegí el **gradient boosting con max_depth=5**, `run_id` **`05dac271ba674e7c967cbc31c5da8989`**. La red queda primera por **0.048 emergencias por cantón y día (0.9 %)**, una diferencia menor a la que puede mover un cambio de división (en los taxis, la semilla movió el error un 7 %). Ante ese empate, el gradient boosting se puede explicar con sus importancias, es determinista y no se sobreajusta (brecha de −0.003). Mejora a la línea base en un **18.1 %** (5.549 contra 6.778). Al cargarlo desde el registro, el MAE reproducido es **5.548994361235862**, idéntico al registrado.
 
 **Si otra persona clona tu repositorio, ¿qué necesita para obtener exactamente el mismo número? ¿Qué de eso quedó registrado en MLflow y qué no?**
 
-_(tu respuesta)_
+Necesita el mismo código, los mismos datos, la misma división, los mismos hiperparámetros con la misma semilla y las mismas versiones de las librerías.
+
+- **Quedó en MLflow:** los hiperparámetros (incluido `random_state` = 42), la fecha de corte y la separación de 7 días, la huella del CSV (`7624e6f357a7`), las filas de entrenamiento, las métricas, el modelo entrenado y las versiones de Python y de las librerías con las que se entrenó (`python_env.yaml` y `requirements.txt` del artefacto).
+- **No quedó en MLflow:**
+  - **El código** (`pipeline_proyecto.py`, `linea_base.py` y el notebook): las reglas de limpieza, como quitar las zonas no delimitadas y el objetivo de enero de 2024, solo están ahí, y la corrida no registra un commit de git.
+  - **Los datos en sí:** solo su huella. El CSV está en el repo, pero si alguien lo cambia, la huella solo avisa que es distinto, no permite recuperar el original.
+  - **El propio registro:** `.mlflow/` está en `.gitignore`, así que quien clona el repo no recibe las corridas; tiene que volver a correr el notebook.
 
 ## Antes de la próxima sesión
 
