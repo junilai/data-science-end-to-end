@@ -86,7 +86,7 @@ No. La duración tiene una correlación de 0.956 (la distancia, 0.960), pero sol
 
 ## Ejercicio 3: explora el dataset de tu proyecto
 
-Usa el archivo que tu pipeline de la Semana 7 deja listo para modelar. Copia la plantilla [`plantilla-eda/explorar_proyecto.ipynb`](./plantilla-eda/explorar_proyecto.ipynb) a la carpeta de tu proyecto: el notebook es tu entregable, con el código, lo que mostró y lo que concluyes en el mismo lugar.
+Usa el archivo que tu pipeline de la Semana 7 deja listo para modelar. Copia la plantilla [`plantilla-eda/explorar_proyecto.ipynb`](./plantilla-eda/explorar_proyecto.ipynb) a `psets/proyecto/modelado/`: el notebook es tu entregable, con el código, lo que mostró y lo que concluyes en el mismo lugar.
 
 ### Paso 1: resumen y variable objetivo (5 minutos)
 

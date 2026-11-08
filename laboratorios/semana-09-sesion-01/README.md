@@ -101,7 +101,7 @@ No existen: `duracion_min` y `propina` (se conocen al terminar el viaje), `tarif
 
 ## Ejercicio 3: dos features para tu proyecto
 
-Usa el mismo archivo de tu exploración de la Semana 8 y copia la plantilla [`plantilla-features/features_proyecto.ipynb`](./plantilla-features/features_proyecto.ipynb) a la carpeta de tu proyecto. Todo lo que pide este ejercicio queda en el notebook: el código de cada feature, la evidencia y la justificación en las celdas de texto.
+Usa el mismo archivo de tu exploración de la Semana 8 y copia la plantilla [`plantilla-features/features_proyecto.ipynb`](./plantilla-features/features_proyecto.ipynb) a `psets/proyecto/modelado/`, al lado de tu notebook de exploración. Todo lo que pide este ejercicio queda en el notebook: el código de cada feature, la evidencia y la justificación en las celdas de texto.
 
 ### Paso 1: el momento de la predicción (5 minutos)
 
