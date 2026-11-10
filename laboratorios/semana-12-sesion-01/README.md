@@ -137,7 +137,9 @@ El archivo [`.github/workflows/pruebas.yml`](../../.github/workflows/pruebas.yml
 
 **Pega el enlace a la ejecución de GitHub Actions donde pasan tus pruebas:**
 
-_(tu respuesta)_
+https://github.com/junilai/data-science-end-to-end/actions/runs/42755340016
+
+En la máquina limpia de GitHub pasaron las 5 pruebas de `psets/proyecto` y, en pasos aparte del mismo workflow, las 3 del Ejercicio 1 y las 4 del Ejercicio 2.
 
 **¿Qué patrón elegiste para tu proyecto, y qué número de latencia lo decide?**
 
@@ -145,7 +147,19 @@ _(tu respuesta)_
 
 **Rompe a propósito una de tus pruebas (cambia un valor esperado), haz push y mira qué pasa en GitHub. Después arréglala. ¿Qué te dijo GitHub, y dónde lo viste?**
 
-_(tu respuesta)_
+En `test_features_calculadas_a_mano` cambié el valor esperado de `media_mismo_dia` de 10 (la media de 8, 10 y 12) a 11, e hice push. GitHub corrió el workflow y lo marcó con una **X roja** ([ejecución 42755591090](https://github.com/junilai/data-science-end-to-end/actions/runs/42755591090)). Lo vi en tres lugares:
+
+- **Al lado del commit**, en la lista de commits de mi fork.
+- **En la pestaña Actions**, con la ejecución en rojo. Dentro del job `pytest`, los pasos de los ejercicios 1 y 2 seguían en verde y solo el paso "Correr las pruebas de psets/proyecto" estaba en rojo, con la anotación `Process completed with exit code 1`.
+- **En el log de ese paso**, que dice exactamente qué falló y dónde:
+
+```
+FAILED psets/proyecto/modelado/test_pipeline_proyecto.py::test_features_calculadas_a_mano - assert 10.0 == 11.0 ± 1.1e-05
+psets/proyecto/modelado/test_pipeline_proyecto.py:55: AssertionError
+========================= 1 failed, 4 passed =========================
+```
+
+Es decir: la feature calculó 10.0, la prueba esperaba 11.0, en la línea 55, y las otras 4 pruebas siguieron pasando. Volví a poner 10 e hice push, y la marca volvió a verde. Aquí el error estaba en la prueba, pero GitHub lo reporta igual si el que cambia es el pipeline: un push que rompe una feature queda marcado antes de que alguien lo use.
 
 ## Antes de la próxima sesión
 
