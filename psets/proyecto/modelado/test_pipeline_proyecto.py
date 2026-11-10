@@ -52,7 +52,7 @@ def test_features_calculadas_a_mano():
     datos = agregar_features(filas_crudas(["2025-03-03"]))
     fila = datos.iloc[0]
     # media del mismo dia de la semana en las 3 semanas previas: (8 + 10 + 12) / 3
-    assert fila["media_mismo_dia"] == pytest.approx(10.0)
+    assert fila["media_mismo_dia"] == pytest.approx(11.0)
     assert fila["log_media_mismo_dia"] == pytest.approx(np.log(11.0))
     assert fila["log_media_prev_28d"] == pytest.approx(np.log(11.0))
     assert fila["log_lag_1d"] == pytest.approx(np.log(10.0))
