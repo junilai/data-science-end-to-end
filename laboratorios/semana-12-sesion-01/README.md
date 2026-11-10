@@ -50,23 +50,29 @@ pytest -v
 
 **Respuesta 1 (antes de los TODO):** sin resolver, `predecir_lote.py` escribe una tabla con una sola columna, y `pytest` dice `1 failed, 2 passed`. ¿Cómo pueden pasar dos pruebas si el script no estima ninguna tarifa?
 
-_(tu respuesta)_
+Porque una prueba sin `assert` siempre pasa. Las pruebas de los `TODO 4` y `5` solo llaman a `predecir_lote` y no comprueban nada: si la función no lanza un error, pytest las da por buenas. La única que comprueba algo es `test_columnas_de_salida`, que espera tres columnas y recibe una, y es la que falla. Que una prueba pase no significa que el código esté bien. Significa que nada de lo que esa prueba revisa falló.
 
 **Respuesta 2 (TODO 1 y 2):** 4 de los 60 viajes no tienen pasajeros y 2 no tienen método de pago. ¿Esperas que el script falle en esos viajes, que los salte, o que les estime una tarifa? ¿Por qué?
 
-_(tu respuesta)_
+Que les estime una tarifa. El pipeline guardado incluye la preparación: `pasajeros` vacío se imputa con la mediana de entrenamiento, y `metodo_pago` vacío con la categoría más frecuente, con imputadores que se ajustaron al entrenar. El script no falla ni salta esas filas, y los 60 viajes salen con tarifa. Saltarlos sería peor: la app abriría por la mañana un viaje reservado sin tarifa. Además, `pasajeros` casi no influye en la tarifa (correlación −0.05 en la Semana 8), así que imputarlo cambia poco la estimación.
 
 **Respuesta 3 (TODO 3):** todas las filas de la tabla llevan la misma `version_modelo`. ¿Para qué guardarla en cada fila?
 
-_(tu respuesta)_
+Para saber qué modelo produjo cada estimación cuando la tabla ya está lejos del script: la lee la app, se acumula con las de otras noches o se compara con la tarifa real. Si mañana se reentrena el modelo, las filas nuevas llevan otra huella. Así, cuando un pasajero reclama por una tarifa, se puede identificar el modelo exacto y reproducirla, y se pueden comparar los errores de dos versiones sobre los mismos días. Si la versión solo quedara en el log del script, se perdería al mezclar tablas. La huella es el MD5 del `.joblib`, así que cambia con cualquier cambio del archivo, aunque se llame igual.
 
 **Respuesta 4 (TODO 4 y 5):** antes de escribir las dos pruebas, ¿qué cambio en `predecir_lote.py` haría fallar la del `TODO 4`? ¿Y la del `TODO 5`?
 
-_(tu respuesta)_
+- **TODO 4** (una fila por viaje, mismos `id_viaje` y mismo orden): fallaría si el script quitara filas, por ejemplo con un `dropna()` antes de predecir para saltar los viajes incompletos. También si las ordenara, por ejemplo por tarifa, o si armara `id_viaje` con un índice distinto al de las estimaciones.
+- **TODO 5** (ningún viaje sin tarifa y todas las filas con la versión que se pasó): fallaría si el script dejara `NaN` en la tarifa de los viajes sin pasajeros, por ejemplo si se predijera fuera del pipeline, sin el imputador, y se rellenara con vacío. También si escribiera una versión fija o vacía en lugar de `version_modelo`.
 
 **Lo que mostró el lote:**
 
-_(anota la versión del modelo, la tarifa más baja, la más alta, y qué tarifa recibieron los viajes sin pasajeros)_
+Modelo **`c75c7248502c`** (la huella cambia con cada `python entrenar.py` en otra máquina, porque el `.joblib` no es idéntico byte a byte): **60 viajes leídos, 60 filas** en `tarifas_estimadas.csv`.
+
+- Tarifa más baja: **4.67** (viaje 90014). Tarifa más alta: **70.26** (viaje 90051), la tarifa fija del aeropuerto, que el modelo aprendió. Media 22.87, mediana 17.33.
+- Los 4 viajes sin pasajeros sí recibieron tarifa: 90023 → **33.94** (Queens → Upper West Side, 10.6 km), 90024 → **29.88** (Brooklyn → Harlem, 10.2 km), 90025 → **25.80** (Midtown → Harlem, 8.4 km) y 90048 → **17.58** (Harlem → Upper East Side, 4.8 km). Son tarifas acordes a su distancia.
+- Los 2 sin método de pago también: 90044 → 60.79 y 90050 → 29.59.
+- `pytest -v`: **3 passed**.
 
 ## Durante el ConcepTest
 
@@ -88,19 +94,19 @@ Solo o en pareja. Carpeta: [`starter/ejercicio2/`](./starter/ejercicio2/). Cada 
 
 **Respuesta 1:** ¿cuántos pagos quedaron en la cola de revisión? ¿Cuántos fraudes esperarías encontrar en los 300 pagos, si la proporción es la de la Semana 11?
 
-_(tu respuesta)_
+**26 pagos** en la cola (umbral 0.10), el primero con probabilidad 0.9984. En la Semana 11, 295 de 6000 pagos eran fraude (4.9 %), así que en 300 pagos esperaría unos **15 fraudes** (14.8). La cola tiene casi el doble de pagos que fraudes esperados, y eso es lo buscado: con el umbral bajo de la Semana 11, un fraude que se escapa cuesta mucho más que revisar un pago legítimo. El equipo revisa unos 11 pagos de más para no dejar pasar fraudes. Aun así, algunos fraudes pueden quedar fuera de la cola, porque en la Semana 11 el recall con 0.10 no llegaba al 100 %.
 
 **Respuesta 2:** este modelo corre por lotes, una vez al día. ¿Qué pierde la empresa por no evaluar cada pago en el momento en que ocurre? ¿Qué tendría que pasar con la revisión para que eso importe?
 
-_(tu respuesta)_
+Pierde la posibilidad de **frenar el pago antes de que se complete**. Por lotes, el fraude se detecta hasta un día después: el dinero ya salió, y lo único que queda es reclamar, revertir o bloquear la tarjeta para la próxima vez. En ese día, un mismo estafador puede repetir el fraude varias veces. Eso solo importa si la revisión puede **actuar en el momento**: bloquear el pago, pedir una verificación extra o retener el viaje mientras se decide, en segundos y antes de que el pasajero se suba. Si la revisión es manual y se trabaja durante el día, una probabilidad calculada en milisegundos no cambia nada, porque igual espera a que alguien la mire. Para que valga la pena evaluar en línea, la acción tiene que ser automática e inmediata.
 
 **Respuesta 3:** la prueba de la cola de revisión arma su propia tabla de cuatro pagos con probabilidades escritas a mano, en vez de usar el modelo. ¿Qué gana la prueba con eso?
 
-_(tu respuesta)_
+Gana que prueba **solo la lógica de `a_revisar`** (filtrar por umbral, incluir el límite, ordenar de mayor a menor) con un resultado que se sabe de antemano: 4, 2 y 3. Si usara el modelo, las probabilidades dependerían del entrenamiento, de la semilla y de la versión de scikit-learn, y no se podría escribir el resultado esperado a mano. Además, puede poner un caso borde a propósito: el 0.10, que es exactamente el umbral y tiene que entrar. Con un modelo real sería casi imposible que una probabilidad saliera justo 0.10. La prueba no necesita el `.joblib` ni los datos, así que corre en GitHub Actions. Y si falla, el error está en `a_revisar` y no en el modelo.
 
 **Si terminas antes:** sube `UMBRAL` a 0.50 y vuelve a correr `puntuar_pagos.py`. ¿Cuántos pagos quedan en la cola? ¿Siguen pasando todas las pruebas? ¿Por qué?
 
-_(tu respuesta)_
+Quedan **13 pagos** en la cola (contra 26 con 0.10), menos que los ~15 fraudes esperados: con 0.50 seguro se escapan fraudes. **Las 4 pruebas siguen pasando**, porque ninguna usa la constante `UMBRAL`: `test_cola_de_revision` le pasa su propio umbral (0.10) a `a_revisar`, y las demás no miran el umbral. Las pruebas comprueban que el código hace lo que debe con cualquier umbral, no que el umbral elegido sea el correcto. Esa es una decisión de negocio (el costo de la Semana 11), y una prueba unitaria no la protege. Si se quisiera proteger, haría falta una prueba explícita como `assert UMBRAL == 0.10`, pero eso congela una decisión, no una lógica. Después de probar, dejé `UMBRAL = 0.10`.
 
 ## Ejercicio 3: el despliegue y las pruebas de tu proyecto
 
@@ -135,7 +141,7 @@ _(tu respuesta)_
 
 **¿Qué patrón elegiste para tu proyecto, y qué número de latencia lo decide?**
 
-_(tu respuesta)_
+**Por lotes**, una vez al día ([`psets/proyecto/docs/despliegue.md`](../../psets/proyecto/docs/despliegue.md)). El modelo predice las emergencias de cada cantón a **7 días**, para planificar recursos y turnos de la semana próxima. Esa decisión puede esperar **horas** (la tabla de la noche está lista antes de la jornada), no milisegundos. Además, los casos son siempre los mismos **222 cantones**, conocidos de antemano, y todas las features (lags, medias de 28 días, calendario y feriados) existen al cierre del día *t*. Estimar los 222 toma unos 4 ms, así que un servicio encendido todo el día no aportaría nada: una consulta a media tarde devolvería lo mismo que la tabla de la noche anterior.
 
 **Rompe a propósito una de tus pruebas (cambia un valor esperado), haz push y mira qué pasa en GitHub. Después arréglala. ¿Qué te dijo GitHub, y dónde lo viste?**
 
