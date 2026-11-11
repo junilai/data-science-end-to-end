@@ -35,6 +35,19 @@ YA_LISTAS = ["es_fin_de_semana", "es_feriado_t7"]
 # separacion, porque el objetivo de cada fila es t+7.
 CORTE = pd.Timestamp("2025-08-25")
 
+# Como vienen escritos en la OBT (dia_semana 0 = lunes).
+NOMBRES_DIA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
+
+def agregar_calendario(datos):
+    """nombre_dia y es_fin_de_semana a partir de la fecha, igual que en la OBT.
+    El servicio los calcula asi porque quien llama solo conoce la fecha."""
+    datos = datos.copy()
+    dia = pd.to_datetime(datos["fecha"]).dt.dayofweek
+    datos["nombre_dia"] = dia.map(dict(enumerate(NOMBRES_DIA)))
+    datos["es_fin_de_semana"] = dia >= 5
+    return datos
+
 
 def agregar_features(datos):
     datos = datos.copy()

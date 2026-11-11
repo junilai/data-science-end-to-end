@@ -1,0 +1,11 @@
+# Solo lo que necesita el servicio, con las mismas versiones con que se
+# entreno el modelo (scikit-learn 1.5.2): un .joblib se carga bien solo con
+# la misma version. mlflow no hace falta aqui: el modelo ya viene exportado.
+fastapi==0.115.4
+uvicorn==0.32.0
+pydantic==2.9.2
+anyio==4.6.2.post1
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.5.2
+joblib==1.4.2

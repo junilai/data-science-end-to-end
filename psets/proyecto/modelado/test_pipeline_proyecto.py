@@ -12,8 +12,8 @@ import pandas as pd
 import pytest
 
 from pipeline_proyecto import (CATEGORICAS, CORTE, NUMERICAS, OBJETIVO, YA_LISTAS,
-                               agregar_features, cargar_datos, cargar_y_dividir,
-                               construir_preparacion)
+                               agregar_calendario, agregar_features, cargar_datos,
+                               cargar_y_dividir, construir_preparacion)
 
 
 def filas_crudas(fechas, **cambios):
@@ -114,3 +114,12 @@ def test_preparacion_acepta_una_categoria_nueva():
     # no falla, y la categoria desconocida queda en ceros
     assert resultado.shape == (1, len(nombres))
     assert (resultado[0, one_hot] == 0).all()
+
+
+def test_calendario_desde_la_fecha():
+    # 2025-03-03 es lunes; la semana termina en sabado y domingo
+    fechas = pd.DataFrame({"fecha": pd.date_range("2025-03-03", periods=7, freq="D")})
+    datos = agregar_calendario(fechas)
+    assert list(datos["nombre_dia"]) == ["Lunes", "Martes", "Miércoles", "Jueves",
+                                         "Viernes", "Sábado", "Domingo"]
+    assert list(datos["es_fin_de_semana"]) == [False] * 5 + [True] * 2

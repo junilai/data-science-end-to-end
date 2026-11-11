@@ -33,12 +33,17 @@ app = FastAPI(title="Tarifa estimada de taxis")
 
 class Viaje(BaseModel):
     """Lo que la app sabe de un viaje antes de que empiece."""
+
     # TODO 1: declara cada dato que manda la app, con su tipo. La fecha (como
     # datetime, para que una fecha mal escrita se rechace) y las zonas son
     # obligatorias; distancia_km, pasajeros y metodo_pago pueden llegar
     # vacios (la preparacion los imputa), con valor por defecto None.
+    fecha_hora_inicio: datetime
     zona_origen: str
     zona_destino: str
+    distancia_km: float | None = None
+    pasajeros: float | None = None
+    metodo_pago: str | None = None
 
 
 @app.get("/salud")
@@ -51,6 +56,8 @@ def predecir(viaje: Viaje):
     # TODO 2: convierte el viaje en un DataFrame de una fila
     # (viaje.model_dump() lo da como diccionario), agrega las features y
     # estima la tarifa con el modelo.
-    tarifa = 0.0
+    dto = pd.DataFrame([viaje.model_dump()])
+    datos_enriquecidos = agregar_features(dto)
+    tarifa = modelo.predict(datos_enriquecidos[NUMERICAS + YA_LISTAS + CATEGORICAS])[0]
 
     return {"tarifa_estimada": round(float(tarifa), 2)}
