@@ -34,3 +34,38 @@ Ninguna feature necesita algo que solo exista en el momento de una consulta. Los
 - **Lo que se ahorra:** no hay que mantener un servicio encendido todo el día, con su monitoreo de latencia y disponibilidad. Basta un trabajo programado que corra una vez y deje la tabla con la versión del modelo en cada fila, como en el laboratorio de la Semana 12.
 
 **El número que decide:** la planificación puede esperar **horas** por la predicción, y los **222 casos** se conocen cada noche. Por lotes alcanza.
+
+## Versionado y registro
+
+El modelo vive en el registro de MLflow como **`emergencias-cantones`**. Cada vez que se reentrena (`python -m servicio.registrar_modelo <max_depth>`, desde `psets/proyecto/`) se crea una versión nueva con su corrida: los parámetros, la huella del archivo de datos, el corte de la división y sus métricas. Ninguna versión reemplaza a otra.
+
+| Versión | Modelo | MAE de prueba | Costo asimétrico (3 × faltante + 1 × sobrante) | Alias |
+|---|---|---|---|---|
+| 1 | gradient boosting `max_depth=3` | 5.7118 | 12.3553 | |
+| 2 | gradient boosting `max_depth=5` | **5.5490** | **11.7665** | `produccion` |
+
+**En producción: versión 2**, el mismo modelo final de la Semana 11 (MAE de prueba 5.5490, igual al de la corrida `05dac271…`).
+
+### Criterio para mover el alias
+
+Una versión nueva pasa a `produccion` solo si cumple las tres condiciones:
+
+1. Se entrenó con la misma división temporal (`corte_division` y `separacion_dias` en su corrida), para que las métricas sean comparables.
+2. Tiene **menor costo asimétrico** que la versión en producción. Es la métrica de negocio: quedarse corto con los recursos de un cantón cuesta más que sobrar.
+3. Su **MAE de prueba no empeora**. Si el costo baja porque el modelo sobreestima en todos lados, no es una mejora.
+
+La decisión la toma quien mantiene el proyecto (yo), con `python -m servicio.promover` sin argumentos, que lista las versiones con sus dos métricas. La decisión queda registrada en el propio registro: el alias dice qué versión sirve, y la etiqueta `anterior_en_produccion` de cada versión promovida dice a cuál reemplazó.
+
+### Cómo sabe el servicio qué versión sirve
+
+`python -m servicio.exportar_modelo` exporta la versión con el alias `produccion` a `servicio/modelo.joblib` y escribe su número en `servicio/modelo_version.txt`. La imagen lleva los dos archivos, así que el contenedor no necesita llegar al servidor de MLflow. `/salud` y cada predicción responden `version_modelo`, y una predicción guardada en la tabla del lote se puede rastrear hasta su corrida.
+
+### Volver a la versión anterior
+
+1. Ver cuál era: `python -m servicio.promover` (la etiqueta `anterior_en_produccion` de la versión actual).
+2. Mover el alias: `python -m servicio.promover <versión anterior>`. No se reentrena nada: el modelo de esa versión sigue en el registro.
+3. Exportar de nuevo: `python -m servicio.exportar_modelo`.
+4. Reconstruir y levantar la imagen: `docker build -f servicio/Dockerfile -t servicio-emergencias .` y `docker run -p 8000:8000 servicio-emergencias`.
+5. Comprobar con `/salud` que `version_modelo` es la anterior.
+
+Mover el alias no cambia un servicio que ya está corriendo: el modelo se carga al arrancar. Hasta reconstruir y reiniciar, sigue sirviendo la versión de antes, y `version_modelo` lo dice.

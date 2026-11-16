@@ -30,15 +30,18 @@ Los datos no están en el repositorio. Para regenerarlos desde cero: [los comand
 
 El modelo se sirve **por lotes** (ver [`docs/despliegue.md`](docs/despliegue.md)), pero también como API: es la forma en que el lote de cada noche, un tablero u otra aplicación le piden una predicción. El servicio estima las emergencias de un cantón para el día *t + 7* a partir de lo que se sabe al cierre del día *t*. Todos los comandos se corren desde `psets/proyecto/`.
 
-### 1. Exportar el modelo desde MLflow
+### 1. Registrar y exportar el modelo desde MLflow
 
-El servicio carga `servicio/modelo.joblib`, que no está en el repositorio: se regenera desde el registro de MLflow de la Semana 11. Con el servidor de MLflow levantado (`MLFLOW_TRACKING_URI`, por defecto `http://127.0.0.1:5050`):
+El modelo está en el registro de MLflow como `emergencias-cantones`. La versión que sirve es la que tiene el alias `produccion`: hoy, la versión 2 (gradient boosting `max_depth=5`, MAE de prueba 5.549). El criterio para mover el alias y cómo volver atrás están en [`docs/despliegue.md`](docs/despliegue.md#versionado-y-registro). Con el servidor de MLflow levantado (`MLFLOW_TRACKING_URI`, por defecto `http://127.0.0.1:5050`):
 
 ```
-python servicio/exportar_modelo.py
+python -m servicio.registrar_modelo 5   # entrena y registra una version nueva
+python -m servicio.promover             # lista las versiones con sus metricas
+python -m servicio.promover 2           # pone el alias produccion en la version 2
+python -m servicio.exportar_modelo      # exporta la version en produccion
 ```
 
-Exporta el run `05dac271ba674e7c967cbc31c5da8989` (gradient boosting `max_depth=5`, tag `candidato=final`, MAE de prueba 5.549). Para exportar otro run: `python servicio/exportar_modelo.py <run_id>`.
+El último comando deja `servicio/modelo.joblib` y `servicio/modelo_version.txt` (el número de la versión). Ninguno de los dos está en el repositorio: se regeneran con este comando.
 
 ### 2. Construir y levantar el contenedor
 
@@ -53,8 +56,8 @@ Sin Docker: `uvicorn servicio.api:app --port 8000`. La documentación interactiv
 
 ### 3. Rutas
 
-- `GET /salud`: si el servicio está vivo, si tiene modelo y su versión (los primeros 12 caracteres del MD5 de `modelo.joblib`).
-- `POST /predecir`: recibe `fecha`, `region`, `lag_1d` (opcional), `lag_7d`, `lag_14d`, `lag_28d`, `media_prev_28d` (todas ≥ 0) y `es_feriado_t7`. Calcula `nombre_dia`, `es_fin_de_semana` y las features en log con `agregar_calendario` y `agregar_features` de `modelado/pipeline_proyecto.py`, las mismas del entrenamiento. Un campo obligatorio faltante o una emergencia negativa reciben 422.
+- `GET /salud`: si el servicio está vivo, si tiene modelo y qué versión del registro sirve. La lee de `modelo_version.txt`, que va dentro de la imagen, así que el contenedor no necesita llegar a MLflow.
+- `POST /predecir`: cada respuesta dice qué versión la calculó. Recibe `fecha`, `region`, `lag_1d` (opcional), `lag_7d`, `lag_14d`, `lag_28d`, `media_prev_28d` (todas ≥ 0) y `es_feriado_t7`. Calcula `nombre_dia`, `es_fin_de_semana` y las features en log con `agregar_calendario` y `agregar_features` de `modelado/pipeline_proyecto.py`, las mismas del entrenamiento. Un campo obligatorio faltante o una emergencia negativa reciben 422.
 
 ### Ejemplo
 
@@ -63,7 +66,7 @@ Latacunga, lunes 2026-08-24:
 ```
 $ curl -X POST localhost:8000/predecir -H "Content-Type: application/json" \
   -d '{"fecha": "2026-08-24", "region": "Sierra", "lag_1d": 141, "lag_7d": 106, "lag_14d": 116, "lag_28d": 109, "media_prev_28d": 121.25, "es_feriado_t7": false}'
-{"fecha_objetivo":"2026-08-31","emergencias_estimadas":108.79,"version_modelo":"961785a60016"}
+{"fecha_objetivo":"2026-08-31","emergencias_estimadas":108.79,"version_modelo":"2"}
 ```
 
 (El valor real del 2026-08-31 fue 119.)
@@ -74,4 +77,4 @@ $ curl -X POST localhost:8000/predecir -H "Content-Type: application/json" \
 pytest psets/proyecto -v
 ```
 
-Desde la raíz del fork. `servicio/test_api.py` prueba el contrato de la API con un modelo de prueba (no necesita `modelo.joblib`), y GitHub Actions la corre en cada push.
+Desde la raíz del fork. `servicio/test_api.py` prueba el contrato de la API con un modelo de prueba y una versión inventada (no necesita `modelo.joblib` ni MLflow), y GitHub Actions la corre en cada push.

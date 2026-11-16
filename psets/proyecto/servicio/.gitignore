@@ -1,0 +1,2 @@
+# Se regeneran con python -m servicio.exportar_modelo (como modelo.joblib).
+modelo_version.txt

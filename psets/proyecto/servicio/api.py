@@ -5,12 +5,11 @@ sabe de un canton al cierre del dia t: la fecha, la region, sus emergencias
 pasadas y si t + 7 es feriado. El servicio calcula las features con las mismas
 funciones de modelado/pipeline_proyecto.py con que se entreno el modelo.
 
-Desde psets/proyecto/, despues de python servicio/exportar_modelo.py:
+Desde psets/proyecto/, despues de python -m servicio.exportar_modelo:
 
     uvicorn servicio.api:app --port 8000
 """
 
-import hashlib
 import os
 from datetime import date, timedelta
 
@@ -22,17 +21,20 @@ from pydantic import BaseModel, Field
 from modelado.pipeline_proyecto import (CATEGORICAS, NUMERICAS, YA_LISTAS,
                                         agregar_calendario, agregar_features)
 
-RUTA_MODELO = os.environ.get("RUTA_MODELO",
-                             os.path.join(os.path.dirname(os.path.abspath(__file__)), "modelo.joblib"))
+CARPETA = os.path.dirname(os.path.abspath(__file__))
+RUTA_MODELO = os.environ.get("RUTA_MODELO", os.path.join(CARPETA, "modelo.joblib"))
+RUTA_VERSION = os.environ.get("RUTA_VERSION", os.path.join(CARPETA, "modelo_version.txt"))
 
-# Se carga una sola vez, al arrancar. La version es la huella del archivo:
-# cambia si se exporta otro modelo, aunque el archivo se llame igual.
+# Se carga una sola vez, al arrancar. La version es el numero de la version de
+# "emergencias-cantones" en el registro de MLflow, que exportar_modelo.py deja
+# junto al modelo: el contenedor la sabe sin llegar al servidor de MLflow.
 modelo = None
 version_modelo = None
 if os.path.exists(RUTA_MODELO):
     modelo = joblib.load(RUTA_MODELO)
-    with open(RUTA_MODELO, "rb") as archivo:
-        version_modelo = hashlib.md5(archivo.read()).hexdigest()[:12]
+if os.path.exists(RUTA_VERSION):
+    with open(RUTA_VERSION) as archivo:
+        version_modelo = archivo.read().strip()
 
 app = FastAPI(title="Emergencias por canton a 7 dias")
 

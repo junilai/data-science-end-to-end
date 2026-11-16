@@ -2,8 +2,9 @@
 
     pytest psets/proyecto -v
 
-No usan modelo.joblib (en GitHub Actions no existe): reemplazan el modelo por
-uno de prueba que siempre estima 12 emergencias.
+No usan modelo.joblib ni el registro de MLflow (en GitHub Actions no existen):
+reemplazan el modelo por uno de prueba que siempre estima 12 emergencias, con
+una version inventada, "7".
 """
 
 import pandas as pd
@@ -35,14 +36,14 @@ def modelo_de_prueba():
 
 
 api.modelo = modelo_de_prueba()
-api.version_modelo = "prueba"
+api.version_modelo = "7"
 cliente = TestClient(api.app)
 
 
 def test_salud():
     respuesta = cliente.get("/salud")
     assert respuesta.status_code == 200
-    assert respuesta.json() == {"estado": "ok", "modelo_cargado": True, "version_modelo": "prueba"}
+    assert respuesta.json() == {"estado": "ok", "modelo_cargado": True, "version_modelo": "7"}
 
 
 def test_prediccion_valida():
@@ -50,7 +51,15 @@ def test_prediccion_valida():
     assert respuesta.status_code == 200
     # el objetivo es t + 7
     assert respuesta.json() == {"fecha_objetivo": "2026-08-31", "emergencias_estimadas": 12.0,
-                                "version_modelo": "prueba"}
+                                "version_modelo": "7"}
+
+
+def test_cada_prediccion_dice_que_version_la_calculo():
+    # dos cantones distintos, la misma version: la que sirve el servicio
+    for canton in (CANTON, {**CANTON, "region": "Costa", "fecha": "2026-08-29"}):
+        respuesta = cliente.post("/predecir", json=canton)
+        assert respuesta.status_code == 200
+        assert respuesta.json()["version_modelo"] == "7"
 
 
 def test_lag_1d_vacio_se_imputa():
