@@ -49,15 +49,16 @@ La imagen se construye desde `psets/proyecto/`, porque copia `modelado/pipeline_
 
 ```
 docker build -f servicio/Dockerfile -t servicio-emergencias .
-docker run -p 8000:8000 servicio-emergencias
+docker run -p 8000:8000 -v "$(pwd)/monitoreo:/app/monitoreo" servicio-emergencias
 ```
 
-Sin Docker: `uvicorn servicio.api:app --port 8000`. La documentación interactiva queda en `http://localhost:8000/docs`.
+El volumen `-v` deja el registro de predicciones (`monitoreo/predicciones.jsonl`) fuera del contenedor, para que sobreviva a un reinicio y lo lea `monitoreo/desempeno.py`. Sin Docker: `uvicorn servicio.api:app --port 8000`. La documentación interactiva queda en `http://localhost:8000/docs`.
 
 ### 3. Rutas
 
 - `GET /salud`: si el servicio está vivo, si tiene modelo y qué versión del registro sirve. La lee de `modelo_version.txt`, que va dentro de la imagen, así que el contenedor no necesita llegar a MLflow.
-- `POST /predecir`: cada respuesta dice qué versión la calculó. Recibe `fecha`, `region`, `lag_1d` (opcional), `lag_7d`, `lag_14d`, `lag_28d`, `media_prev_28d` (todas ≥ 0) y `es_feriado_t7`. Calcula `nombre_dia`, `es_fin_de_semana` y las features en log con `agregar_calendario` y `agregar_features` de `modelado/pipeline_proyecto.py`, las mismas del entrenamiento. Un campo obligatorio faltante o una emergencia negativa reciben 422.
+- `GET /metricas`: las métricas del sistema desde que arrancó el servicio: peticiones a `/predecir`, errores de validación (422), errores de servidor (≥ 500) y latencia p50 y p95 en milisegundos.
+- `POST /predecir`: cada respuesta trae su `id_prediccion` y dice qué versión la calculó. Recibe `cod_canton`, `fecha`, `region`, `lag_1d` (opcional), `lag_7d`, `lag_14d`, `lag_28d`, `media_prev_28d` (todas ≥ 0) y `es_feriado_t7`. Calcula `nombre_dia`, `es_fin_de_semana` y las features en log con `agregar_calendario` y `agregar_features` de `modelado/pipeline_proyecto.py`, las mismas del entrenamiento. Un campo obligatorio faltante o una emergencia negativa reciben 422. Cada predicción válida queda en `monitoreo/predicciones.jsonl`, con su entrada, su salida y la versión.
 
 ### Ejemplo
 
@@ -65,11 +66,20 @@ Latacunga, lunes 2026-08-24:
 
 ```
 $ curl -X POST localhost:8000/predecir -H "Content-Type: application/json" \
-  -d '{"fecha": "2026-08-24", "region": "Sierra", "lag_1d": 141, "lag_7d": 106, "lag_14d": 116, "lag_28d": 109, "media_prev_28d": 121.25, "es_feriado_t7": false}'
-{"fecha_objetivo":"2026-08-31","emergencias_estimadas":108.79,"version_modelo":"2"}
+  -d '{"cod_canton": "0501", "fecha": "2026-08-24", "region": "Sierra", "lag_1d": 141, "lag_7d": 106, "lag_14d": 116, "lag_28d": 109, "media_prev_28d": 121.25, "es_feriado_t7": false}'
+{"id_prediccion":"9d6fa49b40e44e4abeef656e54847aae","cod_canton":"0501","fecha_objetivo":"2026-08-31","emergencias_estimadas":108.79,"version_modelo":"2"}
 ```
 
 (El valor real del 2026-08-31 fue 119.)
+
+### Monitoreo
+
+Las métricas que se vigilan, cuándo se conocen y con qué umbral alertan están en [`docs/monitoreo.md`](docs/monitoreo.md). Desde `psets/proyecto/`:
+
+```
+python -m monitoreo.simular_lote 2026-07-27 2026-08-23   # simula 4 semanas del lote contra el servicio
+python -m monitoreo.desempeno 2026-09-01                 # MAE y costo por semana y version, con la verdad conocida a esa fecha
+```
 
 ### Pruebas
 
@@ -77,4 +87,4 @@ $ curl -X POST localhost:8000/predecir -H "Content-Type: application/json" \
 pytest psets/proyecto -v
 ```
 
-Desde la raíz del fork. `servicio/test_api.py` prueba el contrato de la API con un modelo de prueba y una versión inventada (no necesita `modelo.joblib` ni MLflow), y GitHub Actions la corre en cada push.
+Desde la raíz del fork. `servicio/test_api.py` prueba el contrato de la API, el registro de cada predicción y las métricas, con un modelo de prueba, una versión inventada y un registro temporal (no necesita `modelo.joblib` ni MLflow), y GitHub Actions la corre en cada push.
