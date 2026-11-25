@@ -50,3 +50,60 @@ La llave para unirla con la verdad es **`cod_canton` + `fecha_objetivo`**. `pyth
 ## Lo que no ve ninguna métrica de sistema
 
 El servicio puede responder en 4 ms, con 0 errores y la versión correcta, y aun así estimar mal. Por ejemplo, si cambia la forma en que se registran las emergencias (un canal nuevo de reporte, una reclasificación) o si un evento cambia la relación entre la historia y el futuro. Para eso están las métricas de modelo, y la buena llega 7 días tarde. El indicador temprano solo avisa si el modelo responde distinto a como respondía ante la misma historia (una feature mal calculada, un modelo mal exportado). No avisa si la realidad cambió y el modelo sigue respondiendo igual.
+
+## Deriva
+
+`python -m monitoreo.deriva_proyecto` mide la deriva con los datos de prueba (desde 2025-08-25) y el modelo en producción (versión 2), y guarda la referencia que usa el servicio en `servicio/referencia_deriva.json`.
+
+- **Features vigiladas:** tres, cada una repartida en los deciles del entrenamiento.
+  - `log_media_mismo_dia` y `log_media_prev_28d`, las de más peso en el gradient boosting (importancia 0.68 y 0.30).
+  - `log_lag_1d`, que casi no pesa (0.01), pero es el dato más reciente: el primero que falla si la carga diaria no terminó antes del lote.
+- **Ventana:** una semana de lote, **7 noches × 222 cantones = 1554 predicciones**. Una sola noche se mueve demasiado: `log_lag_1d` del lunes mira un domingo, y el día después de un feriado el PSI de una noche llegó a 0.35 (el 2 de enero), sin que nada estuviera mal. En semanas completas, el PSI normal no pasa de 0.038.
+
+### Lo que mostró la simulación
+
+Promedio de las 52 semanas completas del período de prueba, en cada escenario:
+
+| Escenario | Tipo | PSI `media_mismo_dia` | PSI `media_prev_28d` | PSI `lag_1d` | MAE | Costo asimétrico | Semanas con alerta (0.03) |
+|---|---|---|---|---|---|---|---|
+| Normal (máximo de 52 semanas: 0.012, 0.038 y 0.019) | — | 0.006 | 0.012 | 0.006 | 5.55 | 11.77 | 1.9 % (1 semana) |
+| Carga incompleta: `lag_1d` llega con el 90 % | Datos | 0.006 | 0.012 | 0.071 | 5.60 | 12.41 | 100 % |
+| Carga incompleta: `lag_1d` con el 50 % | Datos | 0.006 | 0.012 | 0.261 | 6.32 | 16.10 | 100 % |
+| Lluvias en la Costa × 1.3 | Datos | 0.008 | 0.016 | 0.010 | 6.40 | 13.89 | 9.6 % |
+| Lluvias en la Costa × 1.5 | Datos | 0.014 | 0.025 | 0.017 | 7.51 | 17.15 | 26.9 % |
+| Más emergencias en el país × 1.2 | Datos | 0.025 | 0.033 | 0.046 | 7.21 | 16.63 | 98.1 % |
+| Más emergencias en el país × 1.5 | Datos | 0.092 | 0.117 | 0.119 | 11.04 | 27.28 | 100 % |
+| Cambio de registro: objetivo × 1.1 | Conceptual | 0.006 | 0.012 | 0.006 | 7.30 | 19.29 | 1.9 % |
+| Cambio de registro: objetivo × 1.25 | Conceptual | 0.006 | 0.012 | 0.006 | 12.06 | 34.85 | 1.9 % |
+
+- **Carga incompleta:** el lote corre antes de que termine la carga del día *t*, y `lag_1d` llega con parte de las emergencias de ayer. Es la deriva de datos más probable en un lote nocturno. Daña poco, porque el modelo casi no usa `lag_1d`, pero dice que el dato no está completo.
+- **Lluvias en la Costa:** los cantones de la Costa tienen más emergencias, en la historia y en el futuro.
+- **Más emergencias en el país:** todos los cantones tienen más emergencias, en la historia y en el futuro.
+- **Cambio de registro:** desde un día, el sistema cuenta como emergencia lo que antes no contaba. La historia que ve el modelo es la de antes y el objetivo, el de después. Es deriva conceptual. El 1.9 % de alertas de las dos filas de cambio de registro es la misma semana normal de la falsa alarma: las features son las de siempre.
+
+Las derivas de datos de "más emergencias" mantienen la relación entre historia y futuro, y aun así el costo sube: un cantón con más emergencias que todas las que vio el modelo queda en la punta de los árboles, y el gradient boosting no extrapola. Por eso esa deriva hay que verla, aunque la relación no cambie.
+
+### El umbral: 0.03
+
+| Umbral | Falsas alarmas (52 semanas normales) | Detección: carga incompleta al 75 % | Detección: país × 1.2 |
+|---|---|---|---|
+| 0.02 | 11.5 % | 100 % | 100 % |
+| **0.03** | **1.9 % (1 semana)** | **100 %** | **98.1 %** |
+| 0.05 | 0 % | 98.1 % | 46.2 % |
+| 0.10 | 0 % | 75.0 % | 0 % |
+
+Lo justifican dos números. Con 0.03 hay **una falsa alarma en un año** (la semana del 18 de mayo de 2026, con PSI 0.038 en `log_media_prev_28d`), y se detecta el **98 %** de las semanas con 20 % más emergencias en el país, una deriva que sube el costo de 11.77 a 16.63. Con 0.05 no hay falsas alarmas, pero esa deriva se escapa en más de la mitad de las semanas (46 %). Revisar una alarma al año cuesta mucho menos que una semana planificada con un modelo que se queda corto.
+
+El servicio responde en `GET /deriva` el PSI de las tres features en las últimas 1554 predicciones, y solo alerta con la ventana llena, porque con pocas predicciones el PSI es ruido: con una sola predicción, el PSI pasó de 8.
+
+### Lo que esta alerta no detecta
+
+- **La deriva conceptual:** con el registro × 1.25 el costo casi se triplica (34.85) y el PSI no se mueve, porque lo que llega al modelo es igual que siempre. Solo la ven el MAE y el costo contra la verdad, 7 días después (`monitoreo/desempeno.py`).
+- **La deriva de una parte de los cantones:** con lluvias en la Costa × 1.5 el costo sube a 17.15 y la alerta se enciende solo en 27 % de las semanas. La Costa es una parte de los 222 cantones, y su aumento apenas mueve la distribución del país. Un PSI por región lo vería antes.
+- **Las features no vigiladas:** `es_feriado_t7`, la región o el día de la semana. Un feriado mal cargado en el calendario no movería ninguno de los tres PSI.
+
+**La regla:**
+
+- Si la alerta de deriva se enciende y el costo no cambia, es deriva de datos que el modelo absorbe: se revisa la carga de datos (¿terminó antes del lote?) y se espera la verdad.
+- Si el costo sube sin alerta de deriva, es deriva conceptual, y hay que reentrenar con datos recientes.
+- Si suben los dos, es deriva de datos que daña. Primero se arregla la carga, si ese era el problema. Si los datos están bien (el país de verdad tiene más emergencias), se reentrena con datos recientes para que el modelo vea esos niveles.

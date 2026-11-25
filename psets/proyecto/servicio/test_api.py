@@ -5,7 +5,8 @@
 No usan modelo.joblib ni el registro de MLflow (en GitHub Actions no existen):
 reemplazan el modelo por uno de prueba que siempre estima 12 emergencias, con
 una version inventada, "7". Cada prueba escribe su registro de predicciones
-en una carpeta temporal (tmp_path) y empieza con las metricas en cero.
+en una carpeta temporal (tmp_path) y empieza con las metricas en cero y con
+un monitor de deriva vacio, de ventana 4 y con una referencia inventada.
 """
 
 import json
@@ -19,6 +20,7 @@ from sklearn.pipeline import Pipeline
 from modelado.pipeline_proyecto import (CATEGORICAS, NUMERICAS, YA_LISTAS, agregar_calendario,
                                         agregar_features, construir_preparacion)
 from servicio import api
+from servicio.deriva import MonitorDeDeriva
 
 CANTON = {
     "cod_canton": "0501",
@@ -40,6 +42,18 @@ def modelo_de_prueba():
     return modelo
 
 
+# Una referencia inventada: la mitad de las predicciones por debajo de log 2
+# (unas 6 emergencias) y la mitad por encima, en las dos features.
+REFERENCIA = {
+    "ventana": 4,
+    "umbral": 0.15,
+    "log_lag_1d": {"cortes": [2.0], "proporciones": [0.5, 0.5]},
+    "log_media_prev_28d": {"cortes": [2.0], "proporciones": [0.5, 0.5]},
+}
+# Un canton chico: log1p(1) = 0.69, por debajo del corte. CANTON esta por encima.
+CANTON_CHICO = {**CANTON, "lag_1d": 1, "lag_7d": 1, "lag_14d": 1, "lag_28d": 1, "media_prev_28d": 1}
+
+
 class ModeloRoto:
     """Un modelo que falla al predecir, para provocar un error de servidor."""
 
@@ -53,6 +67,7 @@ def cliente(tmp_path):
     api.version_modelo = "7"
     api.RUTA_REGISTRO = str(tmp_path / "predicciones.jsonl")
     api.metricas = api.Metricas()
+    api.monitor = MonitorDeDeriva(REFERENCIA)
     # raise_server_exceptions=False: un error dentro de la ruta llega como
     # respuesta 500, igual que con uvicorn, en vez de romper la prueba.
     return TestClient(api.app, raise_server_exceptions=False)
@@ -156,3 +171,55 @@ def test_emergencias_negativas_se_rechazan(cliente):
     respuesta = cliente.post("/predecir", json={**CANTON, "lag_7d": -3})
     assert respuesta.status_code == 422
     assert any(error["loc"] == ["body", "lag_7d"] for error in respuesta.json()["detail"])
+
+
+def test_deriva_sin_alerta_con_una_ventana_como_la_referencia(cliente):
+    for canton in (CANTON, CANTON_CHICO, CANTON, CANTON_CHICO):
+        cliente.post("/predecir", json=canton)
+    estado = cliente.get("/deriva").json()
+    assert estado["predicciones_en_ventana"] == 4
+    assert estado["psi"] == {"log_lag_1d": 0.0, "log_media_prev_28d": 0.0}
+    assert estado["alerta"] is False
+
+
+def test_deriva_alerta_con_una_ventana_alejada_de_la_referencia(cliente):
+    # cuatro cantones grandes: todas las predicciones caen en la casilla de arriba
+    for _ in range(4):
+        cliente.post("/predecir", json=CANTON)
+    estado = cliente.get("/deriva").json()
+    assert estado["psi"]["log_lag_1d"] > REFERENCIA["umbral"]
+    assert estado["alerta"] is True
+
+
+def test_deriva_no_alerta_con_la_ventana_incompleta(cliente):
+    for _ in range(3):
+        cliente.post("/predecir", json=CANTON)
+    estado = cliente.get("/deriva").json()
+    assert estado["predicciones_en_ventana"] == 3
+    assert estado["psi"]["log_lag_1d"] > REFERENCIA["umbral"]
+    assert estado["alerta"] is False
+
+
+def test_deriva_guarda_solo_la_ultima_ventana(cliente):
+    # cuatro grandes (alerta) y despues cuatro como la referencia: la alerta se apaga
+    for canton in [CANTON] * 4 + [CANTON, CANTON_CHICO, CANTON, CANTON_CHICO]:
+        cliente.post("/predecir", json=canton)
+    estado = cliente.get("/deriva").json()
+    assert estado["predicciones_en_ventana"] == 4
+    assert estado["alerta"] is False
+
+
+def test_un_lag_1d_vacio_no_cuenta_en_la_deriva(cliente):
+    sin_lag = {clave: valor for clave, valor in CANTON_CHICO.items() if clave != "lag_1d"}
+    for canton in (CANTON, sin_lag):
+        cliente.post("/predecir", json=canton)
+    estado = cliente.get("/deriva").json()
+    # lag_1d: solo cuenta CANTON (todo arriba); media_prev_28d: uno y uno
+    assert estado["psi"]["log_lag_1d"] > 0
+    assert estado["psi"]["log_media_prev_28d"] == 0.0
+
+
+def test_deriva_sin_referencia(cliente):
+    api.monitor = None
+    cliente.post("/predecir", json=CANTON)
+    assert cliente.get("/deriva").json() == {"referencia_cargada": False}

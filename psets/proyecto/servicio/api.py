@@ -7,9 +7,10 @@ con las mismas funciones de modelado/pipeline_proyecto.py con que se entreno
 el modelo.
 
 Ademas de responder, mide la latencia y el codigo de cada prediccion (las
-metricas del sistema, en /metricas) y guarda cada prediccion en
+metricas del sistema, en /metricas), guarda cada prediccion en
 monitoreo/predicciones.jsonl, para unirla despues con las emergencias reales
-del dia t + 7 (monitoreo/desempeno.py).
+del dia t + 7 (monitoreo/desempeno.py), y vigila la deriva de datos de las
+ultimas predicciones contra el entrenamiento (en /deriva).
 
 Desde psets/proyecto/, despues de python -m servicio.exportar_modelo:
 
@@ -30,12 +31,14 @@ from pydantic import BaseModel, Field
 
 from modelado.pipeline_proyecto import (CATEGORICAS, NUMERICAS, YA_LISTAS,
                                         agregar_calendario, agregar_features)
+from servicio.deriva import MonitorDeDeriva
 
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 RUTA_MODELO = os.environ.get("RUTA_MODELO", os.path.join(CARPETA, "modelo.joblib"))
 RUTA_VERSION = os.environ.get("RUTA_VERSION", os.path.join(CARPETA, "modelo_version.txt"))
 RUTA_REGISTRO = os.environ.get("RUTA_REGISTRO",
                                os.path.join(CARPETA, "..", "monitoreo", "predicciones.jsonl"))
+RUTA_REFERENCIA = os.environ.get("RUTA_REFERENCIA", os.path.join(CARPETA, "referencia_deriva.json"))
 
 # Se carga una sola vez, al arrancar. La version es el numero de la version de
 # "emergencias-cantones" en el registro de MLflow, que exportar_modelo.py deja
@@ -47,6 +50,12 @@ if os.path.exists(RUTA_MODELO):
 if os.path.exists(RUTA_VERSION):
     with open(RUTA_VERSION) as archivo:
         version_modelo = archivo.read().strip()
+
+# La referencia de deriva la escribe python -m monitoreo.deriva_proyecto.
+monitor = None
+if os.path.exists(RUTA_REFERENCIA):
+    with open(RUTA_REFERENCIA) as archivo:
+        monitor = MonitorDeDeriva(json.load(archivo))
 
 
 class Metricas:
@@ -127,6 +136,13 @@ def ver_metricas():
     return metricas.resumen()
 
 
+@app.get("/deriva")
+def ver_deriva():
+    if monitor is None:
+        return {"referencia_cargada": False}
+    return {"referencia_cargada": True, **monitor.estado()}
+
+
 @app.post("/predecir")
 def predecir(canton: Canton):
     # Un lag_1d vacio llega como None; como float queda NaN y lo imputa la
@@ -151,4 +167,6 @@ def predecir(canton: Canton):
         "fecha_objetivo": respuesta["fecha_objetivo"],
         "emergencias_estimadas": estimacion,
     })
+    if monitor is not None:
+        monitor.registrar(datos.iloc[0].to_dict())
     return respuesta

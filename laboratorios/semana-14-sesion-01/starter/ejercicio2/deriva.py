@@ -20,7 +20,11 @@ def proporciones_numericas(valores, cortes):
     # TODO 1: quita los None, cuenta con np.histogram usando como bins
     # [-np.inf] + cortes + [np.inf], y divide por el total. Si no queda
     # ningun valor, devuelve un arreglo de ceros del largo correcto.
-    return np.zeros(len(cortes) + 1)
+    presentes = [valor for valor in valores if valor is not None]
+    if not presentes:
+        return np.zeros(len(cortes) + 1)
+    conteo, _ = np.histogram(presentes, bins=[-np.inf] + list(cortes) + [np.inf])
+    return conteo / len(presentes)
 
 
 def proporciones_categoricas(valores, categorias):
@@ -29,14 +33,18 @@ def proporciones_categoricas(valores, categorias):
     casilla, pero si en el total."""
     # TODO 2: cuenta cuantos valores hay de cada categoria y divide por la
     # cantidad total de valores.
-    return np.zeros(len(categorias))
+    if not valores:
+        return np.zeros(len(categorias))
+    return np.array([sum(valor == categoria for valor in valores) for categoria in categorias]) / len(valores)
 
 
 def psi(referencia, actual):
     """El PSI entre dos listas de proporciones, con MINIMO en las casillas
     vacias, como en el notebook."""
     # TODO 3: la misma funcion del notebook.
-    return 0.0
+    r = np.clip(np.asarray(referencia, dtype=float), MINIMO, None)
+    a = np.clip(np.asarray(actual, dtype=float), MINIMO, None)
+    return float(np.sum((a - r) * np.log(a / r)))
 
 
 class MonitorDeDeriva:
@@ -52,6 +60,10 @@ class MonitorDeDeriva:
         deja solo los ultimos `ventana`."""
         # Agrega la distancia (aunque sea None) y la zona del viaje, y si
         # alguna lista pasa de `ventana` elementos, quita los mas viejos.
+        self.distancias.append(viaje.get("distancia_km"))
+        self.zonas.append(viaje.get("zona_origen"))
+        self.distancias = self.distancias[-self.ventana:]
+        self.zonas = self.zonas[-self.ventana:]
 
     def estado(self):
         """Un diccionario con "viajes_en_ventana", "psi" (un diccionario con
@@ -62,4 +74,16 @@ class MonitorDeDeriva:
         # Calcula los dos PSI contra self.referencia (sus "proporciones",
         # con los "cortes" o las "categorias" de cada feature) y arma el
         # diccionario.
-        return {"viajes_en_ventana": len(self.zonas), "psi": {}, "alerta": False}
+        if not self.zonas:
+            return {"viajes_en_ventana": 0, "psi": {}, "alerta": False}
+        distancia = self.referencia["distancia_km"]
+        zona = self.referencia["zona_origen"]
+        valores_psi = {
+            "distancia_km": round(psi(distancia["proporciones"],
+                                      proporciones_numericas(self.distancias, distancia["cortes"])), 4),
+            "zona_origen": round(psi(zona["proporciones"],
+                                     proporciones_categoricas(self.zonas, zona["categorias"])), 4),
+        }
+        ventana_llena = len(self.zonas) >= self.ventana
+        alerta = ventana_llena and any(valor > self.umbral for valor in valores_psi.values())
+        return {"viajes_en_ventana": len(self.zonas), "psi": valores_psi, "alerta": alerta}

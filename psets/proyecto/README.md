@@ -58,6 +58,7 @@ El volumen `-v` deja el registro de predicciones (`monitoreo/predicciones.jsonl`
 
 - `GET /salud`: si el servicio está vivo, si tiene modelo y qué versión del registro sirve. La lee de `modelo_version.txt`, que va dentro de la imagen, así que el contenedor no necesita llegar a MLflow.
 - `GET /metricas`: las métricas del sistema desde que arrancó el servicio: peticiones a `/predecir`, errores de validación (422), errores de servidor (≥ 500) y latencia p50 y p95 en milisegundos.
+- `GET /deriva`: el PSI de `log_media_mismo_dia`, `log_media_prev_28d` y `log_lag_1d` en las últimas 1554 predicciones (una semana de lote) contra el entrenamiento, y si hay alerta (algún PSI mayor que 0.03 con la ventana llena). La referencia está en `servicio/referencia_deriva.json` y se regenera con `python -m monitoreo.deriva_proyecto`.
 - `POST /predecir`: cada respuesta trae su `id_prediccion` y dice qué versión la calculó. Recibe `cod_canton`, `fecha`, `region`, `lag_1d` (opcional), `lag_7d`, `lag_14d`, `lag_28d`, `media_prev_28d` (todas ≥ 0) y `es_feriado_t7`. Calcula `nombre_dia`, `es_fin_de_semana` y las features en log con `agregar_calendario` y `agregar_features` de `modelado/pipeline_proyecto.py`, las mismas del entrenamiento. Un campo obligatorio faltante o una emergencia negativa reciben 422. Cada predicción válida queda en `monitoreo/predicciones.jsonl`, con su entrada, su salida y la versión.
 
 ### Ejemplo
@@ -79,6 +80,7 @@ Las métricas que se vigilan, cuándo se conocen y con qué umbral alertan está
 ```
 python -m monitoreo.simular_lote 2026-07-27 2026-08-23   # simula 4 semanas del lote contra el servicio
 python -m monitoreo.desempeno 2026-09-01                 # MAE y costo por semana y version, con la verdad conocida a esa fecha
+python -m monitoreo.deriva_proyecto                      # simula derivas, elige el umbral y guarda la referencia del servicio
 ```
 
 ### Pruebas
